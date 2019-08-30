@@ -34,6 +34,9 @@ end
     # o primeiro elemento é igual ao fator de desconto spot para o primeiro dia de prazo
     @test rates[1] ≈ -log(0.999753858111698)
 
+    # o segundo elemento é a fwd entre dia 1 e dia 2
+    @test rates[2] ≈ -log( 0.999507707271884 /  0.999753858111698)
+
     # o produtório de todos os fatores de desconto é igual ao fator de desconto para o prazo final
     @test reduce(*, map(exp, -rates)) ≈ 0.8534437717820871
 end
@@ -49,4 +52,7 @@ end
         Date(2021, 6, 15)) # maturity
 
     bin_tree = BinomialDaily.BinomialTree(am_call)
+
+    @test bin_tree.risk_neutral_probabilities[1] ≈ ((1 / 0.999753858111698) - bin_tree.d) / (bin_tree.u - bin_tree.d)
+    @test bin_tree.risk_neutral_probabilities[2] ≈ ((1 / (0.999507707271884 /  0.999753858111698)) - bin_tree.d) / (bin_tree.u - bin_tree.d)
 end
