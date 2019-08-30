@@ -79,3 +79,32 @@ end
         @printf("%15.4f", call_price)
     end
 end
+
+@testset "Kep Fixed r" begin
+    riskfree_curve = InterestRates.IRCurve(
+        "PRE DI-Futuro",
+        InterestRates.BDays252(BusinessDays.BRSettlement()),
+        InterestRates.ExponentialCompounding(),
+        InterestRates.CompositeInterpolation(
+            InterestRates.StepFunction(),
+            InterestRates.CubicSplineOnRates(),
+            InterestRates.FlatForward()),
+        Date(2019, 3, 29),
+        [1, 2],
+        [0.074608594, 0.074608594]
+    )
+
+    am_call = BinomialDaily.AmericanCall(
+        riskfree_curve,
+        0.0, # dividend_yield
+        17.3, # stock spot price
+        38.66, # strike
+        0.439026837963, # volatility
+        Date(2019, 3, 29), # pricing_date
+        Date(2021, 6, 15)) # maturity
+
+    bin_tree = BinomialDaily.BinomialTree(am_call)
+
+    call_price = bin_tree.nodes[1][1].payoff * 23 * 107621
+    @printf("%15.4f", call_price)
+end
