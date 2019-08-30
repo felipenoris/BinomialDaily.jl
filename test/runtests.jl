@@ -53,6 +53,11 @@ end
 
     bin_tree = BinomialDaily.BinomialTree(am_call)
 
+    @test bin_tree.days_to_maturity == 555
     @test bin_tree.risk_neutral_probabilities[1] ≈ ((1 / 0.999753858111698) - bin_tree.d) / (bin_tree.u - bin_tree.d)
     @test bin_tree.risk_neutral_probabilities[2] ≈ ((1 / (0.999507707271884 /  0.999753858111698)) - bin_tree.d) / (bin_tree.u - bin_tree.d)
+
+    @test [ n.s for n in bin_tree.nodes[1] ] ≈ [ 17.3 ]
+    @test [ n.s for n in bin_tree.nodes[2] ] ≈ [ 17.3 * bin_tree.u, 17.3 * bin_tree.d ]
+    @test [ n.s for n in bin_tree.nodes[3] ] ≈ [ 17.3 * bin_tree.u * bin_tree.u, 17.3 * bin_tree.u * bin_tree.d, 17.3 * bin_tree.d * bin_tree.d ]
 end

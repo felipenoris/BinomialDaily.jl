@@ -26,7 +26,7 @@ end
 abstract type AbstractBinomialTree end
 
 mutable struct TreeNode{T<:AbstractBinomialTree}
-    current_step::Int
+    current_time::Int
     node_number::Int
     s::Float64
     price::Float64
@@ -91,9 +91,35 @@ function risk_neutral_probabilities(rates::Vector{Float64}, u::Real, d::Real, Δ
     return [ (exp(r*Δt) - d) / (u - d) for r in rates ]
 end
 
+function new_fwd_node(t::BinomialTree, current_time, node_number)
+    node = TreeNode(current_time, node_number, NaN, NaN, t)
+
+    if node.current_time == 0
+        # primeiro node
+        node.s = t.contract.s0
+    else
+        @assert node.current_time > 0
+        if node.node_number == 1
+            # up
+            previous_node = t.nodes[current_time][1]
+            node.s = previous_node.s * t.u
+        else
+            # down
+            previous_node = t.nodes[current_time][node.node_number-1]
+            node.s = previous_node.s * t.d
+        end
+    end
+
+    return node
+end
+
 # preenche nós da árvore, sem calcular o preço do derivativo
 function fwd_prop!(t::BinomialTree)
     @assert isempty(t.nodes)
+
+    for current_time in 0:t.days_to_maturity
+        push!(t.nodes, [ new_fwd_node(t, current_time, node_number) for node_number in 1:(current_time+1) ])
+    end
 end
 
 # preenche preço do derivativo, a partir do final da árvore
