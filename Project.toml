@@ -1,0 +1,8 @@
+name = "BinomialDaily"
+uuid = "720ff590-caa6-11e9-336c-37a683ba6b28"
+authors = ["Felipe Noronha <felipenoris@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+BusinessDays = "4f18b42c-503e-5345-9536-bb0f25fc7038"
+InterestRates = "09453d48-b9e1-5bf0-a018-8d5c65f8cb56"
