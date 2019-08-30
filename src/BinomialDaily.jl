@@ -1,6 +1,6 @@
 
 """
-Modelo de apreçamento por árvore binomial
+Modelo de apreçameno por árvore binomial
 onde o time-step é casado com as datas de fechamento
 entre a data de apreçamento e o vencimento da opção.
 
@@ -29,7 +29,7 @@ mutable struct TreeNode{T<:AbstractBinomialTree}
     current_time::Int
     node_number::Int
     s::Float64
-    price::Float64
+    payoff::Float64
     tree::T
 end
 
@@ -71,17 +71,18 @@ function daily_forward_rates_vector(curve::InterestRates.AbstractIRCurve, divide
 
     result = Vector{Float64}()
     d0 = pricing_date
-    Δt = 1 # fixo
-    d1 = BusinessDays.advancebdays(CAL, d0, Δt)
+    Δt_days = 1
+    Δt_years = Δt_days / 252
+    d1 = BusinessDays.advancebdays(CAL, d0, Δt_days)
 
     while d1 <= maturity
         df = discountfactorforward(curve, d0, d1)
-        rate_continuous = -log(df) / Δt
+        rate_continuous = -log(df) / Δt_years
         push!(result, rate_continuous - dividend_yield)
 
         # update d0, d1
         d0 = d1
-        d1 = BusinessDays.advancebdays(CAL, d1, Δt)
+        d1 = BusinessDays.advancebdays(CAL, d1, Δt_days)
     end
 
     return result
@@ -124,7 +125,26 @@ end
 
 # preenche preço do derivativo, a partir do final da árvore
 function backward_prop!(t::BinomialTree)
-    #@assert !isempty(t.nodes)
+    @assert !isempty(t.nodes)
+    Δt = 1.0 / 252
+
+    # preenche payoff no vencimento
+    for node in t.nodes[end]
+        node.payoff = max(node.s - t.contract.k, 0)
+    end
+
+    # preenche payoff antes do vencimento
+    for current_time in (t.days_to_maturity-1):-1:0
+        for node in t.nodes[current_time + 1]
+            @assert node.current_time == current_time
+            payoff_up = t.nodes[ current_time + 2 ][node.node_number].payoff
+            payoff_down = t.nodes[ current_time + 2 ][node.node_number + 1].payoff
+
+            r = t.forward_rates[current_time + 1]
+            q = t.risk_neutral_probabilities[current_time + 1]
+            node.payoff = max( exp(-r*Δt) * ( q * payoff_up + (1 - q) * payoff_down), max(node.s - t.contract.k, 0) )
+        end
+    end
 end
 
 function gen_tree!(t::BinomialTree)
@@ -133,7 +153,7 @@ function gen_tree!(t::BinomialTree)
 end
 
 function BinomialTree(contract::AmericanCall)
-    Δt = 1.0 # fixo
+    Δt = 1.0 / 252 # fixo
     @assert contract.riskfree_curve.daycount == InterestRates.BDays252(BusinessDays.BRSettlement()) "Unsupported daycount: $(contract.daycount)."
     dtm = BusinessDays.bdayscount(BusinessDays.BRSettlement(), contract.pricing_date, contract.maturity)
 

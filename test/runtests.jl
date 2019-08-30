@@ -1,5 +1,5 @@
 
-using Dates, Test, InterestRates, BusinessDays, BinomialDaily
+using Dates, Test, InterestRates, BusinessDays, BinomialDaily, Printf
 
 riskfree_curve = InterestRates.IRCurve(
     "PRE DI-Futuro",
@@ -32,13 +32,13 @@ end
     rates = BinomialDaily.daily_forward_rates_vector(riskfree_curve, 0.0, Date(2019, 3, 29), Date(2021, 6, 15))
 
     # o primeiro elemento é igual ao fator de desconto spot para o primeiro dia de prazo
-    @test rates[1] ≈ -log(0.999753858111698)
+    @test rates[1] ≈ -log(0.999753858111698) / (1 / 252)
 
     # o segundo elemento é a fwd entre dia 1 e dia 2
-    @test rates[2] ≈ -log( 0.999507707271884 /  0.999753858111698)
+    @test rates[2] ≈ -log( 0.999507707271884 /  0.999753858111698) / (1 / 252)
 
     # o produtório de todos os fatores de desconto é igual ao fator de desconto para o prazo final
-    @test reduce(*, map(exp, -rates)) ≈ 0.8534437717820871
+    @test reduce(*, map(exp, -rates .* (1/252))) ≈ 0.8534437717820871
 end
 
 @testset "Kep" begin
@@ -56,8 +56,26 @@ end
     @test bin_tree.days_to_maturity == 555
     @test bin_tree.risk_neutral_probabilities[1] ≈ ((1 / 0.999753858111698) - bin_tree.d) / (bin_tree.u - bin_tree.d)
     @test bin_tree.risk_neutral_probabilities[2] ≈ ((1 / (0.999507707271884 /  0.999753858111698)) - bin_tree.d) / (bin_tree.u - bin_tree.d)
+    @test bin_tree.risk_neutral_probabilities[1] != bin_tree.risk_neutral_probabilities[2]
 
-    @test [ n.s for n in bin_tree.nodes[1] ] ≈ [ 17.3 ]
-    @test [ n.s for n in bin_tree.nodes[2] ] ≈ [ 17.3 * bin_tree.u, 17.3 * bin_tree.d ]
-    @test [ n.s for n in bin_tree.nodes[3] ] ≈ [ 17.3 * bin_tree.u * bin_tree.u, 17.3 * bin_tree.u * bin_tree.d, 17.3 * bin_tree.d * bin_tree.d ]
+    @testset "fwd prop" begin
+        @test [ n.s for n in bin_tree.nodes[1] ] ≈ [ 17.3 ]
+        @test [ n.s for n in bin_tree.nodes[2] ] ≈ [ 17.3 * bin_tree.u, 17.3 * bin_tree.d ]
+        @test [ n.s for n in bin_tree.nodes[3] ] ≈ [ 17.3 * bin_tree.u * bin_tree.u, 17.3 * bin_tree.u * bin_tree.d, 17.3 * bin_tree.d * bin_tree.d ]
+        @test bin_tree.nodes[end][1].s ≈ 17.3 * bin_tree.u ^ bin_tree.days_to_maturity
+        @test bin_tree.nodes[end][end].s ≈ 17.3 * bin_tree.d ^ bin_tree.days_to_maturity
+
+        @test bin_tree.nodes[1][1].current_time == 0
+        @test bin_tree.nodes[1][end].current_time == 0
+        @test bin_tree.nodes[end][1].current_time == bin_tree.days_to_maturity
+        @test bin_tree.nodes[end][end].current_time == bin_tree.days_to_maturity
+    end
+
+    @testset "back prop" begin
+        @test bin_tree.nodes[end][1].payoff ≈ max(17.3 * bin_tree.u ^ bin_tree.days_to_maturity - 38.66, 0)
+        @test bin_tree.nodes[end][end].payoff ≈ max(17.3 * bin_tree.d ^ bin_tree.days_to_maturity - 38.66, 0)
+
+        call_price = bin_tree.nodes[1][1].payoff * 23 * 107621
+        @printf("%15.4f", call_price)
+    end
 end
