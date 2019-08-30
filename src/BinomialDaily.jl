@@ -40,7 +40,7 @@ struct BinomialTree <: AbstractBinomialTree
     d::Float64
     forward_rates::Vector{Float64}
     risk_neutral_probabilities::Vector{Float64}
-    tree::Vector{Vector{TreeNode}}
+    nodes::Vector{Vector{TreeNode}}
 end
 
 """
@@ -91,6 +91,21 @@ function risk_neutral_probabilities(rates::Vector{Float64}, u::Real, d::Real, Δ
     return [ (exp(r*Δt) - d) / (u - d) for r in rates ]
 end
 
+# preenche nós da árvore, sem calcular o preço do derivativo
+function fwd_prop!(t::BinomialTree)
+    @assert isempty(t.nodes)
+end
+
+# preenche preço do derivativo, a partir do final da árvore
+function backward_prop!(t::BinomialTree)
+    #@assert !isempty(t.nodes)
+end
+
+function gen_tree!(t::BinomialTree)
+    fwd_prop!(t)
+    backward_prop!(t)
+end
+
 function BinomialTree(contract::AmericanCall)
     Δt = 1.0 # fixo
     @assert contract.riskfree_curve.daycount == InterestRates.BDays252(BusinessDays.BRSettlement()) "Unsupported daycount: $(contract.daycount)."
@@ -99,7 +114,7 @@ function BinomialTree(contract::AmericanCall)
     u, d = volatility_match(contract.σ, Δt)
     rates = daily_forward_rates_vector(contract.riskfree_curve, contract.dividend_yield, contract.pricing_date, contract.maturity)
 
-    return BinomialTree(
+    bin_tree = BinomialTree(
         contract,
         dtm,
         u,
@@ -108,6 +123,10 @@ function BinomialTree(contract::AmericanCall)
         risk_neutral_probabilities(rates, u, d, Δt),
         Vector{Vector{TreeNode}}()
     )
+
+    gen_tree!(bin_tree)
+
+    return bin_tree
 end
 
 end # module
