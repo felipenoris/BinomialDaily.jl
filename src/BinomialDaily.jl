@@ -63,7 +63,7 @@ function discountfactorforward(curve::InterestRates.AbstractIRCurve, d0::Date, d
     return InterestRates.discountfactor(curve, d1) / InterestRates.discountfactor(curve, d0)
 end
 
-function daily_forward_rates_vector(curve::InterestRates.AbstractIRCurve, dividend_yield::Float64, pricing_date::Date, maturity::Date)
+function daily_forward_rates_vector(curve::InterestRates.AbstractIRCurve, pricing_date::Date, maturity::Date)
     @assert maturity >= pricing_date
     @assert InterestRates.curve_get_date(curve) == pricing_date
     CAL = BusinessDays.BRSettlement()
@@ -78,7 +78,7 @@ function daily_forward_rates_vector(curve::InterestRates.AbstractIRCurve, divide
     while d1 <= maturity
         df = discountfactorforward(curve, d0, d1)
         rate_continuous = -log(df) / Δt_years
-        push!(result, rate_continuous - dividend_yield)
+        push!(result, rate_continuous)
 
         # update d0, d1
         d0 = d1
@@ -88,8 +88,16 @@ function daily_forward_rates_vector(curve::InterestRates.AbstractIRCurve, divide
     return result
 end
 
-function risk_neutral_probabilities(rates::Vector{Float64}, u::Real, d::Real, Δt::Real)
-    return [ (exp(r*Δt) - d) / (u - d) for r in rates ]
+function risk_neutral_probabilities(rates::Vector{Float64}, q::Real, u::Real, d::Real, Δt::Real)
+    result = Vector{Float64}(undef, length(rates))
+
+    for (i, r) in enumerate(rates)
+        E = exp((r-q)*Δt)
+        @assert d <= E <= u "not arbitrage free: d ($d), e ($E), u ($u)"
+        @inbounds result[i] = (E - d)/(u - d)
+    end
+
+    return result
 end
 
 function new_fwd_node(t::BinomialTree, current_time, node_number)
@@ -133,6 +141,8 @@ function backward_prop!(t::BinomialTree)
         node.payoff = max(node.s - t.contract.k, 0)
     end
 
+    local found_early_exercise::Bool = false
+
     # preenche payoff antes do vencimento
     for current_time in (t.days_to_maturity-1):-1:0
         for node in t.nodes[current_time + 1]
@@ -142,7 +152,15 @@ function backward_prop!(t::BinomialTree)
 
             r = t.forward_rates[current_time + 1]
             q = t.risk_neutral_probabilities[current_time + 1]
-            node.payoff = max( exp(-r*Δt) * ( q * payoff_up + (1 - q) * payoff_down), max(node.s - t.contract.k, 0) )
+            wait_next_period = exp(-r*Δt) * ( q * payoff_up + (1 - q) * payoff_down)
+            exercise_now = max(node.s - t.contract.k, 0)
+
+            if !found_early_exercise && exercise_now > wait_next_period
+                @warn("EARLY EXERCISE at $current_time !!! q = $(t.contract.dividend_yield)")
+                found_early_exercise = true
+            end
+
+            node.payoff = max( wait_next_period, exercise_now )
         end
     end
 end
@@ -158,7 +176,7 @@ function BinomialTree(contract::AmericanCall)
     dtm = BusinessDays.bdayscount(BusinessDays.BRSettlement(), contract.pricing_date, contract.maturity)
 
     u, d = volatility_match(contract.σ, Δt)
-    rates = daily_forward_rates_vector(contract.riskfree_curve, contract.dividend_yield, contract.pricing_date, contract.maturity)
+    rates = daily_forward_rates_vector(contract.riskfree_curve, contract.pricing_date, contract.maturity)
 
     bin_tree = BinomialTree(
         contract,
@@ -166,7 +184,7 @@ function BinomialTree(contract::AmericanCall)
         u,
         d,
         rates,
-        risk_neutral_probabilities(rates, u, d, Δt),
+        risk_neutral_probabilities(rates, contract.dividend_yield, u, d, Δt),
         Vector{Vector{TreeNode}}()
     )
 

@@ -29,7 +29,7 @@ end
 end
 
 @testset "fwd rates" begin
-    rates = BinomialDaily.daily_forward_rates_vector(riskfree_curve, 0.0, Date(2019, 3, 29), Date(2021, 6, 15))
+    rates = BinomialDaily.daily_forward_rates_vector(riskfree_curve, Date(2019, 3, 29), Date(2021, 6, 15))
 
     # o primeiro elemento é igual ao fator de desconto spot para o primeiro dia de prazo
     @test rates[1] ≈ -log(0.999753858111698) / (1 / 252)
@@ -107,4 +107,33 @@ end
 
     call_price = bin_tree.nodes[1][1].payoff * 23 * 107621
     @printf("Kep fixed r: %15.4f", call_price)
+end
+
+@testset "Kep Fixed r, q != 0" begin
+    riskfree_curve = InterestRates.IRCurve(
+        "PRE DI-Futuro",
+        InterestRates.BDays252(BusinessDays.BRSettlement()),
+        InterestRates.ExponentialCompounding(),
+        InterestRates.CompositeInterpolation(
+            InterestRates.StepFunction(),
+            InterestRates.CubicSplineOnRates(),
+            InterestRates.FlatForward()),
+        Date(2019, 3, 29),
+        [1, 2],
+        [0.074608594, 0.074608594]
+    )
+
+    am_call = BinomialDaily.AmericanCall(
+        riskfree_curve,
+        0.02, # dividend_yield
+        17.3, # stock spot price
+        38.66, # strike
+        0.439026837963, # volatility
+        Date(2019, 3, 29), # pricing_date
+        Date(2021, 6, 15)) # maturity
+
+    bin_tree = BinomialDaily.BinomialTree(am_call)
+
+    call_price = bin_tree.nodes[1][1].payoff * 23 * 107621
+    @printf("Kep fixed r, q != 0: %15.4f", call_price)
 end
