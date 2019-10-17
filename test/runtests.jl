@@ -76,7 +76,7 @@ end
         @test bin_tree.nodes[end][end].payoff ≈ max(17.3 * bin_tree.d ^ bin_tree.days_to_maturity - 38.66, 0)
 
         call_price = bin_tree.nodes[1][1].payoff * 23 * 107621
-        @printf("%15.4f", call_price)
+        @printf("Kep: %15.4f", call_price)
     end
 end
 
@@ -106,5 +106,5 @@ end
     bin_tree = BinomialDaily.BinomialTree(am_call)
 
     call_price = bin_tree.nodes[1][1].payoff * 23 * 107621
-    @printf("%15.4f", call_price)
+    @printf("Kep fixed r: %15.4f", call_price)
 end
