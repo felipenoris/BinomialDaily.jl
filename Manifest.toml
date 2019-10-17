@@ -5,9 +5,9 @@ uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 
 [[BusinessDays]]
 deps = ["Dates"]
-git-tree-sha1 = "a13cd54a439a9b4b8463442e98270faaab1c16f7"
+git-tree-sha1 = "d3c1f6df23fde3593e64fb059f26e14e02ef69da"
 uuid = "4f18b42c-503e-5345-9536-bb0f25fc7038"
-version = "0.9.4"
+version = "0.9.5"
 
 [[Dates]]
 deps = ["Printf"]
